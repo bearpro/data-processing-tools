@@ -44,8 +44,11 @@ let parseWeather json : Weather list =
 let forecast = Job.map parseWeather weatherJson
 
 let main = 
-  let [|user; password |] = 
-    Environment.GetEnvironmentVariable("WEATHER_DB_CONN").Split(":")
+  let user, password =
+    match Environment.GetEnvironmentVariable("WEATHER_DB_CONN").Split(":") with
+    | [|user; password |] -> user, password
+    | _ -> failwith "Environment variable WEATHER_DB_CONN invalid."
+    
   let connectionString = $"Server=localhost;Port=5432;Database=weather;User Id={user};Password={password};"
   
   job {
