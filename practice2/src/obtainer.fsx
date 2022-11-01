@@ -11,37 +11,23 @@ open Dapper
 open Npgsql
 open FSharp.Json
 
-module SourceJsonModel = 
-  type DataItem = { timepoint: int; temp2m: int }
-  type Root = { product: string; init: string; dataseries: DataItem list}
 
-module TargetModel =
-  type Weather = { date: DateTime; temperature: int }
+type ResponseDataItem = { id: string; awarded_value_eur: string; date: DateTime }
+type ResponseRoot = { total: int64; data: ResponseDataItem list}
+
+type PolandTender = { id: int64; value: double; date: DateTime }
 
 let weatherJson =
-  Request.createUrl Get "https://www.7timer.info/bin/meteo.php?lon=37.5&lat=55.7&ac=0&unit=metric&output=json&tzshift=0"
+  Request.createUrl Get "https://tenders.guru/api/pl/tenders"
   |> Request.responseAsString
 
-open TargetModel
-
-let parseWeather json : Weather list =
-  let sourceData = Json.deserialize<SourceJsonModel.Root> json
-  let dataseries = sourceData.dataseries
-  
-  dataseries 
-  |> List.map (fun forecast -> 
-      let time = DateTime(
-        year = (sourceData.init.Substring(0, 4) |> Int32.Parse),
-        month = (sourceData.init.Substring(4, 2) |> Int32.Parse),
-        day = (sourceData.init.Substring(6, 2) |> Int32.Parse))
-      let hourOffset = sourceData.init.Substring(8, 2) |> Int32.Parse
-
-      let time = time.AddHours (float (forecast.timepoint + hourOffset))
-      { date = time; temperature = forecast.temp2m }
-    )
+let parseData json : PolandTender list =
+  let sourceData = Json.deserialize<ResponseRoot> json
+  sourceData.data
+  |> List.map (fun x -> { id = int64(x.id); value = float(x.awarded_value_eur); date = x.date} )
 
 
-let forecast = Job.map parseWeather weatherJson
+let tenders = Job.map parseData weatherJson
 
 let main = 
   let user, password =
@@ -50,23 +36,22 @@ let main =
     | _ -> failwith "Environment variable WEATHER_DB_CONN invalid."
     
   let connectionString = $"Server=localhost;Port=5432;Database=weather;User Id={user};Password={password};"
-  
+
   job {
     use connection = new NpgsqlConnection(connectionString)
 
-    let! forecast = forecast
-    let firstMetric = forecast |> List.minBy (fun x -> x.date)
-    
-    let! deleted = connection.ExecuteAsync(
-      "DELETE FROM metrics WHERE date >= @min_date", 
-      {| min_date = firstMetric.date |} )
-    printfn $"Deleted {deleted} rows"
+    let! lastInsertedId = connection.QueryFirstAsync<int>(
+      "select max(id) from poland_tenders");
 
-    for weather in forecast do
+    let! tenders = 
+      tenders 
+      |> Job.map (Seq.where (fun x -> x.id > lastInsertedId))
+
+    for tender in tenders do
       let! inserted = connection.ExecuteAsync(
-        "INSERT INTO metrics VALUES (@date, @temperature)", 
-        {| date = weather.date; temperature = weather.temperature |})
-      printfn $"Inserted {inserted} row, {weather}"
+        "INSERT INTO poland_tenders VALUES (@id, @date, @value)", 
+        {| id = tender.id; date = tender.date; value = tender.value |})
+      printfn $"Inserted {inserted} row, {tender}"
   }
 
 do run main

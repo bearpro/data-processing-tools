@@ -7,7 +7,7 @@ open Npgsql
 
 #nowarn "3511"
 
-type Weather = { date: DateTime; temperature: int }
+type PolandTender = { id: int32; date: DateTime; value: double; }
 
 let getData = task {
     let user, password =
@@ -18,9 +18,8 @@ let getData = task {
     let connectionString = $"Server=localhost;Port=5432;Database=weather;User Id={user};Password={password};"
 
     use connection = new NpgsqlConnection(connectionString)
-    return! connection.QueryAsync<Weather>(
-        "select * from metrics where date > @minDate order by date limit 16",
-        {| minDate = DateTime.Now |})
+    return! connection.QueryAsync<PolandTender>(
+        "select * from poland_tenders order by date desc limit 10")
 }
 
 let seqEach n s = 
@@ -36,13 +35,14 @@ let postChart data =
     let chartType = "cht=ls"
     let chartSize = "chs=600x300"
     let axis = "chxt=x,y"
-    let y = "chd=t:" + String.Join(',', [ for item in data -> item.temperature ])
+    let y = "chd=a:" + String.Join(',', [ for item in data -> item.value ])
     let x = "chxl=0:|" + String.Join('|', [ 
-        for item in seqEach 5 data -> 
+        for item in seqEach 1 data -> 
             System.Net.WebUtility.UrlEncode(item.date.ToString("dd MMM hh:mm")) ])
+    let labels = "chxs=1N*cEUR0sz*"
     
     let urlBase = "https://image-charts.com/chart?"
-    let chartData =  String.Join('&', [chartType; y; x; axis; chartSize])
+    let chartData =  String.Join('&', [chartType; y; x; axis; chartSize; labels])
     printfn "%s%s" urlBase chartData
     ()
 
