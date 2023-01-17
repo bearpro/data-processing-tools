@@ -1,3 +1,10 @@
+# Подготовка окружения
+
+К docker-compose из работы №3 добавлен сервис графаны, чтобы получилось:
+
+Контейнер с данными:
+
+```yml
 version: '3'
 services:
   dpt-postgres-db:
@@ -12,3 +19,6 @@ services:
     image: grafana/grafana
     ports:
       - 3000:3000
+```
+
+Добавить источник:
