@@ -1,0 +1,26 @@
+version: '3'
+services:
+  dpt-rabbit:
+    container_name: dpt-rabbit
+    image: rabbitmq
+    ports:
+      - 5672:5672
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  dpt-rabbit-worker1:
+    container_name: dpt-rabbit-worker1
+    build: Worker
+    depends_on:
+      dpt-rabbit:
+        condition: service_healthy
+
+  dpt-rabbit-worker2:
+    container_name: dpt-rabbit-worker2
+    build: Worker
+    depends_on:
+      dpt-rabbit:
+        condition: service_healthy
