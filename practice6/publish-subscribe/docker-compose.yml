@@ -1,0 +1,26 @@
+version: '3'
+services:
+  dpt-rabbit-2:
+    container_name: dpt-rabbit-2
+    image: rabbitmq
+    ports:
+      - 5672:5672
+    healthcheck:
+      test: rabbitmq-diagnostics check_port_connectivity
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  dpt-rabbit-log-receiver1:
+    container_name: dpt-rabbit-log-receiver1
+    build: LogReceiver
+    depends_on:
+      dpt-rabbit-2:
+        condition: service_healthy
+
+  dpt-rabbit-log-receiver2:
+    container_name: dpt-rabbit-log-receiver2
+    build: LogReceiver
+    depends_on:
+      dpt-rabbit-2:
+        condition: service_healthy
